@@ -36,7 +36,10 @@
 #define libccnx_ccnx_Manifest_h
 
 #include <ccnx/common/ccnx_Name.h>
-#include <ccnx/common/ccnx_ManifestSection.h>
+#include <ccnx/common/ccnx_ManifestHashGroup.h>
+
+#include <ccnx/common/internal/ccnx_ManifestInterface.h>
+#include <ccnx/common/internal/ccnx_TlvDictionary.h>
 
 #include <parc/security/parc_Signature.h>
 #include <parc/algol/parc_Memory.h>
@@ -48,14 +51,12 @@ struct ccnx_manifest;
  * @typedef CCNxManifest
  * @brief Structure of the CCNxManifest
  */
-typedef struct ccnx_manifest CCNxManifest;
+typedef CCNxTlvDictionary CCNxManifest;
 
 /**
  * Create a new `CCNxManifest` instance.
  *
- * @param [in] signature A pointer to a `PARCSignature`
- * @param [in] nameLink A pointer to a `CCNxLink`
- * @param [in] metadata A pointer to a `CCNxManifestSection`
+ * @param [in] nameLink A pointer to a `CCNxName`
  * @param [in] payload A pointer to a `CCNxManifestSection`
  *
  * @return A pointer to a `CCNxManifest` instance, or NULL if an error or out of memory.
@@ -63,18 +64,14 @@ typedef struct ccnx_manifest CCNxManifest;
  * Example:
  * @code
  * {
- *     PARCBuffer *signatureBits = parcBuffer_Allocate(256);
- *     PARCSignature *signature = parcSignature_Create(PARCSigningAlgorithm_RSA, PARC_HASH_SHA256, signatureBits);
- *
  *     CCNxName *name = ccnxName_CreateFromURI("lci:/foo/bar/manifest");
- *     CCNxLink *nameLink = ccnxLink_Create(name, NULL, NULL);
  *
- *     CCNxManifest *object = ccnxManifest_Create(signature, name, NULL, NULL);
+ *
+ *     CCNxManifest *object = ccnxManifest_Create(name, payload);
  * }
  * @endcode
  */
-CCNxManifest *ccnxManifest_Create(PARCSignature *signature, CCNxLink *nameLink,
-                                  CCNxManifestSection *metadata, CCNxManifestSection *payload);
+CCNxManifest *ccnxManifest_Create(CCNxName *name);
 
 /**
  * Increase the number of references to an instance of this object.
@@ -143,75 +140,94 @@ void ccnxManifest_Release(CCNxManifest **manifestP);
 void ccnxManifest_AssertValid(const CCNxManifest *manifest);
 
 /**
- * Get the Metadata section of the hotel.
+ * Add a HashGroup to the given `CCNxManifest`.
  *
  * @param [in] manifest A pointer to an instance of `CCNxManifest`.
- *
- * @return A pointer to a `CCNxManifestSection`
+ * @param [in] group A pointer to an instance of `CCNxManifestHashGroup`.
  *
  * Example:
  * @code
  * {
- *     CCNxManifest *manifest = ...;
- *
- *     CCNxManifestSection *metadataSection = ccnxManifest_GetMetadataSection(manifest);
+TODO
  * }
  * @endcode
- *
  */
-CCNxManifestSection *ccnxManifest_GetMetadataSection(const CCNxManifest *manifest);
+void ccnxManifest_AddHashGroup(CCNxManifest *manifest, const CCNxManifestHashGroup *group);
 
 /**
- * Get the paylod section of a `CCNxManifest`.
+ * Get the `CCNxManifestHashGroup` corresponding to the specified index.
  *
  * @param [in] manifest A pointer to an instance of `CCNxManifest`.
+ * @param [in] index The index of the `CCNxManifestHashGroup` to retrieve.
  *
- * @return A pointer to a  `CCNxManifest`.
+ * @return A pointer to a `CCNxManifestHashGroup`.
  *
  * Example:
  * @code
  * {
- *     CCNxManifest *manifest = ...;
- *
- *     CCNxManifestSection *payloadSection = ccnxManifest_GetPayloadSection(manifest);
+TODO
  * }
  * @endcode
  */
-CCNxManifestSection *ccnxManifest_GetPayloadSection(const CCNxManifest *manifest);
+CCNxManifestHashGroup *ccnxManifest_GetHashGroup(const CCNxManifest *manifest, size_t index);
+
+// TODO
+size_t ccnxManifest_GetNumberOfHashGroups(const CCNxManifest *manifest);
 
 /**
- * Get the `CCNxLink` for the given `CCNxManifest`.
+ * Get the `CCNxName` for the given `CCNxManifest`.
  *
  * @param [in] manifest A pointer to an instance of `CCNxManifest`.
- * @return A pointer to the `CCNxLink`.
+ * @return A pointer to the `CCNxName`.
  *
  * Example:
  * @code
  * {
  *     CCNxManifest *manifest = ...;
  *
- *     CCNxLink *nameLink = ccnxManifest_GetNameLink(manifest);
+ *     CCNxName *name = ccnxManifest_GetName(manifest);
  * }
  * @endcode
  */
-CCNxLink *ccnxManifest_GetNameLink(const CCNxManifest *manifest);
+CCNxName *ccnxManifest_GetName(const CCNxManifest *manifest);
 
 /**
- * Get the `PARCSignature instance for the given `CCNxManifest`.
+ * Associate the supplied keyId, signature, and keyLocator with the specified `CCNxManifest`.
  *
- * @param [in] manifest A pointer to an instance of `CCNxManifest`.
- * @return A pointer to a `PARCSignature` instance.
+ * @param [in,out] manifest A pointer to the `CCNxManifest` to update.
+ * @param [in] keyId A pointer to the {@link PARCBuffer} containing the keyId to assign to the manifest.
+ * @param [in] signature A pointer to a {@link PARCSignature} to assign to the manifest.
+ * @param [in] keyLocator A pointer to a {@link CCNxKeyLocator} to assign to the manifest. May be NULL.
+ *
+ * @return true if the signature payload was successfully set, false otherwise.
  *
  * Example:
  * @code
  * {
- *     CCNxManifest *manifest = ...;
+ *     CCNxName *name = ccnxName_CreateFromURI("lci:/hello/dolly");
  *
- *     PARCSignature *signature = ccnxManifest_GetSignature(manifest);
+ *     CCNxManifest *manifest = ccnxContentObject_Create(name, NULL);
+ *
+ *     PARCBuffer *keyId = parcBuffer_WrapCString("keyhash");
+ *     PARCBuffer *sigbits = parcBuffer_CreateFromArray((void *) "siggybits", strlen("siggybits"));
+ *     PARCSignature *signature = parcSignature_Create(PARCSigningAlgorithm_RSA, PARC_HASH_SHA256, parcBuffer_Flip(sigbits));
+ *
+ *     ccnxManifest_SetSignature(manifest, keyId, signature, NULL);
+ *
+ *     parcBuffer_Release(&payload);
+ *     parcBuffer_Release(&sigbits);
+ *     parcBuffer_Release(&keyId);
+ *     parcSignature_Release(&signature);
+ *     ccnxName_Release(&name);
+ *     ccnxManifest_Release(&contentObject);
  * }
  * @endcode
+ *
+ * @see `PARCSignature`
+ * @see `CCNxKeyLocator`
+ * @see `PARCBuffer`
  */
-PARCSignature *ccnxManifest_GetSignature(const CCNxManifest *manifest);
+bool ccnxManifest_SetSignature(CCNxManifest *manifest, const PARCBuffer *keyId, const PARCSignature *signature, const CCNxKeyLocator *keyLocator);
 
 /**
  * Determine if two `CCNxManifest` instances are equal.
@@ -273,20 +289,4 @@ bool ccnxManifest_Equals(const CCNxManifest *x, const CCNxManifest *y);
  */
 char *ccnxManifest_ToString(const CCNxManifest *manifest);
 
-/**
- * Verify the `CCNxManifest`.
- *
- * @param [in] ccnxManifest A pointer to an instance of `CCNxManifest`.
- * @return A pointer to the @p ccnxManifest if it is verified, NULL otherwise.
- *
- * Example:
- * @code
- * {
- *     CCNxManifest *manifest = ...;
- *
- *     assertNotNull(ccnxManifest_Verify(manifest), "Expected verification to return the validated object");
- * }
- * @endcode
- */
-CCNxManifest *ccnxManifest_Verify(const CCNxManifest *ccnxManifest);
 #endif // libccnx_ccnx_Manifest_h

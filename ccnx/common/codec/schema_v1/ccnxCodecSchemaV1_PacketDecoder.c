@@ -44,6 +44,7 @@
 #include <ccnx/common/codec/schema_v1/ccnxCodecSchemaV1_FixedHeader.h>
 #include <ccnx/common/codec/schema_v1/ccnxCodecSchemaV1_OptionalHeadersDecoder.h>
 #include <ccnx/common/codec/schema_v1/ccnxCodecSchemaV1_MessageDecoder.h>
+#include <ccnx/common/codec/schema_v1/ccnxCodecSchemaV1_ManifestDecoder.h>
 #include <ccnx/common/codec/schema_v1/ccnxCodecSchemaV1_ValidationDecoder.h>
 
 typedef struct rta_tlv_schema_v1_data {
@@ -99,12 +100,7 @@ _decodeCPI(CCNxCodecTlvDecoder *cpiDecoder, CCNxTlvDictionary *packetDictionary)
     // we just take the whole contents of the decoder and put in the the PAYLOAD dictionary entry.
     size_t length = ccnxCodecTlvDecoder_Remaining(cpiDecoder);
     PARCBuffer *payload = ccnxCodecTlvDecoder_GetValue(cpiDecoder, length);
-
-    PARCJSON *json = parcJSON_ParseBuffer(payload);
-
-    bool success = ccnxTlvDictionary_PutJson(packetDictionary,
-                                             CCNxCodecSchemaV1TlvDictionary_MessageFastArray_PAYLOAD, json);
-    parcJSON_Release(&json);
+    bool success = ccnxTlvDictionary_PutBuffer(packetDictionary, CCNxCodecSchemaV1TlvDictionary_MessageFastArray_PAYLOAD, payload);
     parcBuffer_Release(&payload);
     return success;
 }
@@ -141,6 +137,7 @@ _decodeMessage(_CCNxCodecSchemaV1Data *data)
             case CCNxCodecSchemaV1Types_MessageType_Interest: // fallthrough
             case CCNxCodecSchemaV1Types_MessageType_ContentObject: // fallthrough
             case CCNxCodecSchemaV1Types_MessageType_Control: // fallthrough
+            case CCNxCodecSchemaV1Types_MessageType_Manifest: // fallthrough
                 break;
 
             default:
@@ -158,6 +155,10 @@ _decodeMessage(_CCNxCodecSchemaV1Data *data)
             if (tlv_type == CCNxCodecSchemaV1Types_MessageType_Control) {
                 // the CPI messages are not a proper "message" in that there's no inner TLV, its just data
                 success = _decodeCPI(messageDecoder, data->packetDictionary);
+            } else if (tlv_type == CCNxCodecSchemaV1Types_MessageType_Manifest) {
+                ccnxTlvDictionary_SetMessageType_Manifest(data->packetDictionary, CCNxTlvDictionary_SchemaVersion_V1);
+                success = ccnxCodecSchemaV1ManifestDecoder_Decode(messageDecoder, data->packetDictionary);
+                printf("is manifest? %d\n", ccnxTlvDictionary_IsManifest(data->packetDictionary));
             } else {
                 success = ccnxCodecSchemaV1MessageDecoder_Decode(messageDecoder, data->packetDictionary);
             }
@@ -260,6 +261,7 @@ ccnxCodecSchemaV1PacketDecoder_Decode(CCNxCodecTlvDecoder *packetDecoder, CCNxTl
             if (_decodeMessage(&data)) {
                 // If there's anything else left, it must be the validation alg and payload
                 if (!ccnxCodecTlvDecoder_IsEmpty(data.decoder)) {
+                    
                     if (_decodeValidationAlg(&data)) {
                         // at this point, we've advanced to the end of the validation algorithm,
                         // that's where we would end signature verification

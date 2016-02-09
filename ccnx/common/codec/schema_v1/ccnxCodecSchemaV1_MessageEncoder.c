@@ -42,11 +42,15 @@
 #include <ccnx/common/ccnx_PayloadType.h>
 #include <ccnx/common/ccnx_InterestReturn.h>
 
+#include <ccnx/common/codec/schema_v1/ccnxCodecSchemaV1_ManifestEncoder.h>
 #include <ccnx/common/codec/schema_v1/ccnxCodecSchemaV1_MessageEncoder.h>
 #include <ccnx/common/codec/schema_v1/ccnxCodecSchemaV1_NameCodec.h>
 #include <ccnx/common/codec/schema_v1/ccnxCodecSchemaV1_Types.h>
 
 #include <ccnx/common/codec/ccnxCodec_TlvUtilities.h>
+
+#include <ccnx/common/ccnx_Manifest.h>
+#include <ccnx/common/ccnx_ManifestHashGroup.h>
 
 static ssize_t
 _encodeName(CCNxCodecTlvEncoder *encoder, CCNxTlvDictionary *packetDictionary)
@@ -74,19 +78,6 @@ _encodePayload(CCNxCodecTlvEncoder *encoder, CCNxTlvDictionary *packetDictionary
     PARCBuffer *buffer = ccnxTlvDictionary_GetBuffer(packetDictionary, CCNxCodecSchemaV1TlvDictionary_MessageFastArray_PAYLOAD);
     if (buffer != NULL) {
         length = ccnxCodecTlvEncoder_AppendBuffer(encoder, CCNxCodecSchemaV1Types_CCNxMessage_Payload, buffer);
-    }
-    return length;
-}
-
-static ssize_t
-_encodeJsonPayload(CCNxCodecTlvEncoder *encoder, CCNxTlvDictionary *packetDictionary)
-{
-    ssize_t length = 0;
-    PARCJSON *json = ccnxTlvDictionary_GetJson(packetDictionary, CCNxCodecSchemaV1TlvDictionary_MessageFastArray_PAYLOAD);
-    if (json != NULL) {
-        char *jsonString = parcJSON_ToCompactString(json);
-        size_t len = strlen(jsonString);
-        length = ccnxCodecTlvEncoder_AppendArray(encoder, CCNxCodecSchemaV1Types_CCNxMessage_Payload, len, (uint8_t *) jsonString);
     }
     return length;
 }
@@ -257,6 +248,16 @@ static ssize_t
 _encodeControl(CCNxCodecTlvEncoder *encoder, CCNxTlvDictionary *packetDictionary)
 {
     ssize_t length = 0;
+
+    trapNotImplemented("not implemented");
+
+    return length;
+}
+
+static ssize_t
+_encodeManifest(CCNxCodecTlvEncoder *encoder, CCNxTlvDictionary *packetDictionary)
+{
+    ssize_t length = 0;
     ssize_t result;
 
     result = _encodeName(encoder, packetDictionary);
@@ -265,7 +266,7 @@ _encodeControl(CCNxCodecTlvEncoder *encoder, CCNxTlvDictionary *packetDictionary
     }
     length += result;
 
-    result = _encodeJsonPayload(encoder, packetDictionary);
+    result = ccnxCodecSchemaV1ManifestEncoder_Encode(encoder, packetDictionary);
     if (result < 0) {
         return result;
     }
@@ -290,6 +291,8 @@ ccnxCodecSchemaV1MessageEncoder_Encode(CCNxCodecTlvEncoder *encoder, CCNxTlvDict
         length = _encodeContentObject(encoder, packetDictionary);
     } else if (ccnxTlvDictionary_IsControl(packetDictionary)) {
         length = _encodeControl(encoder, packetDictionary);
+    } else if (ccnxTlvDictionary_IsManifest(packetDictionary)) {
+        length = _encodeManifest(encoder, packetDictionary);
     } else {
         CCNxCodecError *error = ccnxCodecError_Create(TLV_ERR_PACKETTYPE, __func__, __LINE__, ccnxCodecTlvEncoder_Position(encoder));
         ccnxCodecTlvEncoder_SetError(encoder, error);
