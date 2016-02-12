@@ -100,7 +100,12 @@ _decodeCPI(CCNxCodecTlvDecoder *cpiDecoder, CCNxTlvDictionary *packetDictionary)
     // we just take the whole contents of the decoder and put in the the PAYLOAD dictionary entry.
     size_t length = ccnxCodecTlvDecoder_Remaining(cpiDecoder);
     PARCBuffer *payload = ccnxCodecTlvDecoder_GetValue(cpiDecoder, length);
-    bool success = ccnxTlvDictionary_PutBuffer(packetDictionary, CCNxCodecSchemaV1TlvDictionary_MessageFastArray_PAYLOAD, payload);
+
+    PARCJSON *json = parcJSON_ParseBuffer(payload);
+
+    bool success = ccnxTlvDictionary_PutJson(packetDictionary,
+                                             CCNxCodecSchemaV1TlvDictionary_MessageFastArray_PAYLOAD, json);
+    parcJSON_Release(&json);
     parcBuffer_Release(&payload);
     return success;
 }
@@ -261,7 +266,7 @@ ccnxCodecSchemaV1PacketDecoder_Decode(CCNxCodecTlvDecoder *packetDecoder, CCNxTl
             if (_decodeMessage(&data)) {
                 // If there's anything else left, it must be the validation alg and payload
                 if (!ccnxCodecTlvDecoder_IsEmpty(data.decoder)) {
-                    
+
                     if (_decodeValidationAlg(&data)) {
                         // at this point, we've advanced to the end of the validation algorithm,
                         // that's where we would end signature verification

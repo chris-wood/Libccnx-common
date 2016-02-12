@@ -150,8 +150,22 @@ _encodeCPI(CCNxCodecTlvEncoder *cpiEncoder, CCNxTlvDictionary *packetDictionary)
 {
     // Optional Headers do not have a container, so just append them right to the buffer
     size_t payloadLength = 0;
-    PARCBuffer *payload = ccnxTlvDictionary_GetBuffer(packetDictionary, CCNxCodecSchemaV1TlvDictionary_MessageFastArray_PAYLOAD);
-    if (payload) {
+
+    if (ccnxTlvDictionary_IsValueJson(packetDictionary,
+                                      CCNxCodecSchemaV1TlvDictionary_MessageFastArray_PAYLOAD)) {
+        PARCJSON *json = ccnxTlvDictionary_GetJson(packetDictionary,
+                                                   CCNxCodecSchemaV1TlvDictionary_MessageFastArray_PAYLOAD);
+        if (json) {
+            char *jsonString = parcJSON_ToCompactString(json);
+
+            payloadLength = strlen(jsonString);
+            ccnxCodecTlvEncoder_AppendRawArray(cpiEncoder, payloadLength, (uint8_t * ) jsonString);
+            parcMemory_Deallocate((void **) &jsonString);
+        }
+    } else {
+        PARCBuffer *payload = ccnxTlvDictionary_GetBuffer(packetDictionary,
+                                                          CCNxCodecSchemaV1TlvDictionary_MessageFastArray_PAYLOAD);
+
         payloadLength = parcBuffer_Remaining(payload);
         uint8_t *overlay = parcBuffer_Overlay(payload, 0);
         ccnxCodecTlvEncoder_AppendRawArray(cpiEncoder, payloadLength, overlay);
@@ -303,7 +317,6 @@ ssize_t
 ccnxCodecSchemaV1PacketEncoder_Encode(CCNxCodecTlvEncoder *packetEncoder, CCNxTlvDictionary *packetDictionary)
 {
     ssize_t length = -1;
-    CCNxWireFormatMessageInterface *wireFormat = ccnxWireFormatMessageInterface_GetInterface(packetDictionary);
 
     // We will need to go back and fixedup the headers
     ssize_t fixedHeaderPosition = ccnxCodecTlvEncoder_Position(packetEncoder);
@@ -315,16 +328,14 @@ ccnxCodecSchemaV1PacketEncoder_Encode(CCNxCodecTlvEncoder *packetEncoder, CCNxTl
         ccnxCodecTlvEncoder_MarkSignatureStart(packetEncoder);
 
         CCNxCodecSchemaV1Types_PacketType messageType = -1;
-        
-        wireFormat->setProtectedRegionStart(packetDictionary, fixedHeaderLength);
+
         ssize_t messageLength = _encodeMessage(packetEncoder, packetDictionary, &messageType);
-        wireFormat->setProtectedRegionLength(packetDictionary, messageLength);
-        
+
         if (messageLength >= 0) {
             // validation is optional, so it's ok if its 0 length
             ssize_t validationAlgLength = _encodeValidationAlg(packetEncoder, packetDictionary);
             ssize_t validationPayloadLength = 0;
-            if (validationAlgLength >= 0) {
+            if (validationAlgLength > 0) {
                 ccnxCodecTlvEncoder_MarkSignatureEnd(packetEncoder);
 
                 validationPayloadLength = _encodeValidationPayload(packetEncoder, packetDictionary);
@@ -353,4 +364,3 @@ ccnxCodecSchemaV1PacketEncoder_Encode(CCNxCodecTlvEncoder *packetEncoder, CCNxTl
 
     return length;
 }
-

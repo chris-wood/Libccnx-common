@@ -561,6 +561,7 @@ LONGBOW_TEST_CASE(Control, payload)
 
     ccnxTlvDictionary_PutJson(message, CCNxCodecSchemaV1TlvDictionary_MessageFastArray_PAYLOAD, json);
     parcJSON_Release(&json);
+
     // encode
     CCNxCodecTlvEncoder *encoder = ccnxCodecTlvEncoder_Create();
     ssize_t length = ccnxCodecSchemaV1PacketEncoder_Encode(encoder, message);

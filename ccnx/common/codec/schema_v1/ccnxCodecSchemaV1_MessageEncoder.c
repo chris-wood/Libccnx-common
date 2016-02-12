@@ -72,6 +72,19 @@ _encodeName(CCNxCodecTlvEncoder *encoder, CCNxTlvDictionary *packetDictionary)
 }
 
 static ssize_t
+_encodeJsonPayload(CCNxCodecTlvEncoder *encoder, CCNxTlvDictionary *packetDictionary)
+{
+    ssize_t length = 0;
+    PARCJSON *json = ccnxTlvDictionary_GetJson(packetDictionary, CCNxCodecSchemaV1TlvDictionary_MessageFastArray_PAYLOAD);
+    if (json != NULL) {
+        char *jsonString = parcJSON_ToCompactString(json);
+        size_t len = strlen(jsonString);
+        length = ccnxCodecTlvEncoder_AppendArray(encoder, CCNxCodecSchemaV1Types_CCNxMessage_Payload, len, (uint8_t *) jsonString);
+    }
+    return length;
+}
+
+static ssize_t
 _encodePayload(CCNxCodecTlvEncoder *encoder, CCNxTlvDictionary *packetDictionary)
 {
     ssize_t length = 0;
@@ -248,8 +261,19 @@ static ssize_t
 _encodeControl(CCNxCodecTlvEncoder *encoder, CCNxTlvDictionary *packetDictionary)
 {
     ssize_t length = 0;
+    ssize_t result;
 
-    trapNotImplemented("not implemented");
+    result = _encodeName(encoder, packetDictionary);
+    if (result < 0) {
+        return result;
+    }
+    length += result;
+
+    result = _encodeJsonPayload(encoder, packetDictionary);
+    if (result < 0) {
+        return result;
+    }
+    length += result;
 
     return length;
 }
